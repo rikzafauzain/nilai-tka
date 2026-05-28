@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cek Hasil TKA 2026 - MTsS Al-Mukhtariyah Mande</title>
+    <!-- Bootstrap 5 untuk tampilan responsif dan rapi di HP -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .nilai-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        .badge-kurang { background-color: #dc3545; }
+        .badge-memadai { background-color: #0d6efd; }
+        .badge-baik { background-color: #198754; }
+        .badge-kosong { background-color: #6c757d; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container py-5">
+        <!-- Header Madrasah -->
+        <div class="text-center mb-5">
+            <h3 class="fw-bold text-uppercase">Tes Kemampuan Akademik (TKA) SMP/MTs TAHUN 2026</h3>
+            <h4 class="text-secondary text-uppercase">MTsS Al-Mukhtariyah Mande</h4>
+            <p class="text-muted small">Kabupaten Bandung Barat - Provinsi Jawa Barat</p>
+        </div>
+
+        <!-- Kotak Pencarian -->
+        <div class="card shadow-sm mx-auto p-4 mb-4" style="max-width: 550px; border-radius: 12px;">
+            <h5 class="card-title mb-3 fw-bold text-center">Pencarian Nilai Siswa</h5>
+            <div class="mb-3">
+                <label for="searchKey" class="form-label text-muted small">Masukkan Nama Lengkap Siswa atau NISN:</label>
+                <input type="text" id="searchKey" class="form-control form-control-lg" placeholder="Contoh: MUHAMMAD TAUFAN atau 3103416983" onkeyup="if(event.key === 'Enter') cariNilai()">
+            </div>
+            <button onclick="cariNilai()" class="btn btn-success btn-lg w-100">Cari Hasil Ujian</button>
+        </div>
+
+        <!-- Tempat Menampilkan Hasil Pencarian -->
+        <div id="hasilPencarian" class="mx-auto" style="max-width: 600px;"></div>
+    </div>
+
+    <script>
+        // ISI DENGAN LINK URL CSV YANG SUDAH ANDA DAPATKAN DARI LANGKAH 1
+        const urlSpreadsheet = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRmnuI1awqbz55VpuoKDzmdtoL7AZTK8KbMaZKOkVl-YRnUo4_koR46sWWQy9FQarHwVo2deG4FLdAV/pub?gid=2009898041&single=true&output=csv"; 
+
+        async function cariNilai() {
+            const input = document.getElementById('searchKey').value.toUpperCase().trim();
+            const hasilDiv = document.getElementById('hasilPencarian');
+            
+            if(!input) {
+                hasilDiv.innerHTML = `<div class="alert alert-warning text-center">Silakan masukkan Nama atau NISN anak terlebih dahulu.</div>`;
+                return;
+            }
+
+            hasilDiv.innerHTML = `
+                <div class="text-center my-4">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="mt-2 text-muted small">Mencari data di server madrasah...</p>
+                </div>`;
+
+            try {
+                const response = await fetch(urlSpreadsheet);
+                const dataText = await response.text();
+                
+                // Parsing CSV dengan menangani tanda kutip (jika ada koma di dalam nama/tempat lahir)
+                const baris = parseCSV(dataText);
+                
+                // Urutan Indeks Kolom pada CSV hasil ekspor spreadsheet kita:
+                // b[0]=No Urut, b[1]=Nomor Peserta, b[2]=NISN, b[3]=Nama Peserta, 
+                // b[4]=Tempat Lahir, b[5]=Tanggal Lahir, b[6]=Nilai MTK, b[7]=Kategori MTK,
+                // b[8]=Nilai BI, b[9]=Kategori BI
+                const siswaDitemukan = baris.filter(b => 
+                    (b[3] && b[3].toUpperCase().includes(input)) || 
+                    (b[2] && b[2].includes(input))
+                );
+
+                if(siswaDitemukan.length === 0) {
+                    hasilDiv.innerHTML = `<div class="alert alert-danger text-center">Data siswa tidak ditemukan. Mohon periksa kembali penulisan nama atau NISN.</div>`;
+                    return;
+                }
+
+                // Tampilkan data hasil pencarian
+                let htmlHasil = '';
+                siswaDitemukan.forEach(siswa => {
+                    const kelasBadgeMtk = getBadgeClass(siswa[7]);
+                    const kelasBadgeBi = getBadgeClass(siswa[9]);
+
+                    htmlHasil += `
+                    <div class="card shadow border-0 p-4 mb-4 bg-white" style="border-radius: 12px;">
+                        <span class="text-muted small fw-bold">No. Urut: ${siswa[0]}</span>
+                        <h4 class="text-success fw-bold my-1">${siswa[3]}</h4>
+                        <p class="text-muted small mb-3">NISN: <strong>${siswa[2]}</strong> | No. Peserta: <strong>${siswa[1]}</strong></p>
+                        
+                        <table class="table table-sm table-borderless mb-4 small text-muted">
+                            <tr><td style="width: 110px;">Tempat Lahir</td><td>: ${siswa[4]}</td></tr>
+                            <tr><td>Tanggal Lahir</td><td>: ${siswa[5]}</td></tr>
+                        </table>
+                        
+                        <hr class="mt-0 mb-4">
+                        
+                        <div class="row g-3">
+                            <!-- Kolom Matematika -->
+                            <div class="col-6">
+                                <div class="nilai-box">
+                                    <span class="text-muted d-block small mb-2 fw-bold">MATEMATIKA</span>
+                                    <h2 class="fw-bold mb-1">${siswa[6]}</h2>
+                                    <span class="badge ${kelasBadgeMtk}">${siswa[7]}</span>
+                                </div>
+                            </div>
+                            <!-- Kolom Bahasa Indonesia -->
+                            <div class="col-6">
+                                <div class="nilai-box">
+                                    <span class="text-muted d-block small mb-2 fw-bold">BAHASA INDONESIA</span>
+                                    <h2 class="fw-bold mb-1">${siswa[8]}</h2>
+                                    <span class="badge ${kelasBadgeBi}">${siswa[9]}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                
+                hasilDiv.innerHTML = htmlHasil;
+
+            } catch (error) {
+                console.error(error);
+                hasilDiv.innerHTML = `<div class="alert alert-danger text-center">Gagal terhubung ke server data. Pastikan link CSV benar dan Spreadsheet telah dipublikasikan.</div>`;
+            }
+        }
+
+        // Fungsi pembantu untuk menentukan warna badge kategori kelulusan
+        function getBadgeClass(kategori) {
+            if (!kategori) return 'badge-kosong';
+            const kat = kategori.trim().toLowerCase();
+            if (kat.includes('baik')) return 'badge-baik';
+            if (kat.includes('memadai')) return 'badge-memadai';
+            if (kat.includes('kurang')) return 'badge-kurang';
+            return 'badge-kosong';
+        }
+
+        // Fungsi parser CSV yang aman dari karakter koma di dalam tanda kutip
+        function parseCSV(text) {
+            let p = [[]], l = 0, r = 0, q = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i], next = text[i+1];
+                if (c == '"') { q = !q; }
+                else if (c == ',' && !q) { c = p[l][r++]; p[l][r] = ''; }
+                else if (c == '\n' && !q) { 
+                    if (next == '\r') { i++; } 
+                    row = p[l][r]; r = 0; p[++l] = []; 
+                }
+                else if (c == '\r' && !q) { row = p[l][r]; r = 0; p[++l] = []; }
+                else { p[l][r] = (p[l][r] || '') + c; }
+            }
+            return p;
+        }
+    </script>
+</body>
+</html>
